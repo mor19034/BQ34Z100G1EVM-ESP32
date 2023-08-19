@@ -10,22 +10,23 @@ class bq34z100
     
   private:
       //read can only work inside this library and not in the 
-      uint32_t Read(int add, uint8_t length); //
+      uint16_t Read(int add, uint8_t length); //
   
   public:
       void begin();
       int writeConfig();//should only be done once
       bq34z100();
+      int8_t DeviceType();
       void TryCommunication();
       uint8_t getSOC();//gets the current state of charge %
-      int getTemp();//returns the temperature in C
-      int getVoltage();//returns the battery voltage
+      float getTemp();//returns the temperature in C
+      float getVoltage();//returns the battery voltage
       int getCapacity();//returns the current battery capacity
-      int getCurrent();//returns the current flowing atm
+      float getCurrent();//returns the current flowing atm
       int getStatus();//returns the flags
       int getRemaining();
       int getFlags();
-      int readControl(uint8_t,uint8_t);
+      int16_t Control(uint8_t);
       int readInstantCurrent();
       bool readFlash(uint16_t , uint8_t );
       int enableIT();
@@ -35,6 +36,7 @@ class bq34z100
       void reset();
       void checkSum(uint16_t , uint8_t);
       uint16_t CalibrateVoltageDivider(uint16_t);//used to calibrate the voltage divider
+      int16_t CalculatePackParameters(uint8_t i_pack, uint8_t v_pack, uint8_t Q_cell);
       void chgFlash(uint8_t, int);
       void chgFlashPair(uint8_t, int);
       void chg104Table(uint16_t Vdivider,float CCGain,float CCDelta);
@@ -50,8 +52,11 @@ class bq34z100
       uint32_t floatToXemics(float f);
       float XemicsTofloat(uint32_t inVal);
       int setup(uint8_t BatteryChemistry,uint8_t SeriesCells,uint16_t CellCapacity,uint16_t PackCurrentVoltage,uint16_t current);
+      int16_t Status();
+      int16_t SERNUM();
       void chgFlashQuad(uint8_t index, uint32_t value);
       void CalibrateCurrentShunt(int16_t current);
       float readCurrentShunt();
+      int8_t LearnedStatus();
 };
 #endif
