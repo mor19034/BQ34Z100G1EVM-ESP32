@@ -23,13 +23,15 @@ extern "C" {
 //GPIO22 I2C_SCL, GPIO21 I2C_SDA, default
 
 uint8_t flashbytes[32] = {0}; 
+uint8_t Old_Check_Sum[1] = {0};
+uint8_t Old_byte_value[1] = {0};
+byte new_Pack_Configuration_MSB = 0;
 
 //class bq34z100
 bq34z100::bq34z100() 
 {
   Wire.begin(); //just to ensure i2c starts, initiate Wire library for I2C comunication; 
 }
-
 
 /*----------------------------------INTERFACE------------------------------------------------------
  *  
@@ -63,7 +65,6 @@ uint16_t bq34z100::Read(int add, uint8_t length)  //member of bq34z100
         returnVal = returnVal + (Wire.read() << (8 * i));
     }
     return returnVal;
-    
 }
 
   /*
@@ -75,7 +76,7 @@ uint16_t bq34z100::Read(int add, uint8_t length)  //member of bq34z100
   *that is 0x00 for subcommand1 and 0x08 for subcommand2 
   */
 
-int16_t bq34z100::Control(uint8_t subcommand1, uint8_t subcommand2) 
+int16_t bq34z100::Read_Control(uint8_t subcommand1, uint8_t subcommand2) 
 {
     Wire.beginTransmission(BQ34Z100);
     Wire.write(0x00);
@@ -90,7 +91,6 @@ int16_t bq34z100::Control(uint8_t subcommand1, uint8_t subcommand2)
     int16_t temp = Wire.read();
     temp = temp | (Wire.read() << 8);
     return temp; //return data in decimal 
-
 }
 
   /*
@@ -98,6 +98,15 @@ int16_t bq34z100::Control(uint8_t subcommand1, uint8_t subcommand2)
   * by finding the address of the chip wich you want to comunicate with. 
   * for the bq34z100 you should expect 0x55 if comunication is ok.
   */
+
+void bq34z100::write_reg(uint8_t command, uint8_t val) //the purpose of this function is only to shorten the writing of 2 byte pairs 
+{
+  Wire.beginTransmission(BQ34Z100);
+  Wire.write(command); //set up command 
+  Wire.write(val); 
+  Wire.endTransmission();
+}
+
 
 void bq34z100::TryCommunication()
 {
@@ -135,104 +144,6 @@ void bq34z100::TryCommunication()
   }
   delay(5000);
 }
-
-  //-------------------------------------STANDAR DATA COMMANDS
-
-int bq34z100::enableIT()
-{
-  return Control(0x00, 0x21);
-}
-
-//
-int16_t bq34z100::Status()
-{
-  int16_t temp = Control(0x00, 0x00);
-  byte FlagS= B00000000;
-  delay(100);
-/*
-  if (temp<<15 == 1){
-    Serial.print("BQ34Z100-G1 is in FULL ACCESS SEALED");
-    FlagS = B00000011;
-    if(temp<<15 != 1){
-      Serial.print("BQ34Z100-G1 is not in FULL ACCESS SEALED");
-      FlagS = B00000100;
-    }
-  }
-
-  if (temp<<14 == 1){
-    Serial.print("BQ34Z100-G1 is in SEALED STATE");
-    FlagS = B00000001;
-    if(temp<<14 != 1){
-      Serial.print("BQ34Z100-G1 is in UNSEALED STATE");
-      FlagS = B00000010;
-    }
-  }
-  */
-  return temp;
-}
-
-uint16_t bq34z100::DeviceType()
-{
-  return Control(0x00, 0x01);
-}
-
-uint16_t bq34z100::ChemID()
-{
-  return Control(0x00, 0x08);
-}
-
-void bq34z100::reset()
-{
-  Control(0x00, 0x41);
-}
-
-int16_t bq34z100::RESET_DATA()
-{
-  Control(0x00, 0x05);
-}
-
-  /*
-  * Unsealing the device enables full data flash accesing, necessary for pack configuration and more 
-  * Refer to section 7.3.3.1 for more reference
-  */
-
-
-void bq34z100::UNSEALED() //when changing to this state, sequence needs to be reapeted 3 times, acording to Texas Instruments.
-{
-    Wire.beginTransmission(BQ34Z100);
-    Wire.write(0x00); //Indicates that control is going to be acceced 
-    Wire.write(0x14); //First 2 byte key autentication 
-    Wire.write(0x04);
-    Wire.endTransmission();
-
-    Wire.beginTransmission(BQ34Z100);
-    Wire.write(0x00);
-    Wire.write(0x72); 
-    Wire.write(0x36); 
-    Wire.endTransmission();
-
-    delay(100); //the datasheet indicates to leave a 100 ms delay to ensure modifications of the SEALED state
-}
-
-void bq34z100::FULL_ACCESS_MODE()
-{
-    Wire.beginTransmission(BQ34Z100);
-    Wire.write(0xFF);
-    Wire.write(0xFF);
-    Wire.write(0xFF);
-    Wire.write(0xFF); 
-    Wire.endTransmission();
-    delay(120);
-}
-
-void bq34z100::write_reg(uint8_t add, uint8_t val) //the purpose of this function is only to shorten the writing of 2 byte pairs 
-{
-  Wire.beginTransmission(BQ34Z100);
-  Wire.write(add); //set up command 
-  Wire.write(val); 
-  Wire.endTransmission();
-}
-  //-------------------------------------CALIBRATION & CARACTERIZATION COMMANDS
 
   //This function uses a series of writes that the datasheet says that need to be doone so the dataflash can be acceced
   //the chapter in wich this steps are is: 7.3.3.1 Accessing Data Flash. 
@@ -304,15 +215,226 @@ void bq34z100::chgFlashPair(uint8_t index, int value)
     write_reg((0x40 + index + 1), flashbytes[index + 1]);
 }
 
-void bq34z100::chg48Table(uint16_t Design_capacity, uint16_t Design_energy)
-{
-  readFlash(48, 24);
-  chgFlashPair(21, Design_capacity);
-  chgFlashPair(23, Design_energy);
-  checkSum(48,21);
-}
-//--------------------------------------------END OF INTERFACE------------------------------------------------------
+  //-------------------------------------STANDAR DATA COMMANDS
 
+int bq34z100::enableIT()
+{
+  return Read_Control(0x00, 0x21);
+}
+
+//
+int16_t bq34z100::Status()
+{
+  int16_t temp = Read_Control(0x00, 0x00);
+  byte FlagS= B00000000;
+  delay(100);
+/*
+  if (temp<<15 == 1){
+    Serial.print("BQ34Z100-G1 is in FULL ACCESS SEALED");
+    FlagS = B00000011;
+    if(temp<<15 != 1){
+      Serial.print("BQ34Z100-G1 is not in FULL ACCESS SEALED");
+      FlagS = B00000100;
+    }
+  }
+
+  if (temp<<14 == 1){
+    Serial.print("BQ34Z100-G1 is in SEALED STATE");
+    FlagS = B00000001;
+    if(temp<<14 != 1){
+      Serial.print("BQ34Z100-G1 is in UNSEALED STATE");
+      FlagS = B00000010;
+    }
+  }
+  */
+  return temp;
+}
+
+uint16_t bq34z100::DeviceType()
+{
+  return Read_Control(0x00, 0x01);
+}
+
+uint16_t bq34z100::ChemID()
+{
+  return Read_Control(0x00, 0x08);
+}
+
+void bq34z100::reset()
+{
+  Read_Control(0x00, 0x41);
+}
+
+int16_t bq34z100::RESET_DATA()
+{
+  Read_Control(0x00, 0x05);
+}
+
+  /*
+  * Unsealing the device enables full data flash accesing, necessary for pack configuration and more 
+  * Refer to section 7.3.3.1 for more reference
+  */
+
+void bq34z100::UNSEAL() //when changing to this state, sequence needs to be reapeted 3 times, acording to Texas Instruments.
+{
+    Wire.beginTransmission(BQ34Z100);
+    Wire.write(0x00); //Indicates that control is going to be acceced 
+    Wire.write(0x14); //First 2 byte key autentication 
+    Wire.write(0x04);
+    Wire.endTransmission();
+
+    Wire.beginTransmission(BQ34Z100);
+    Wire.write(0x00);
+    Wire.write(0x72); 
+    Wire.write(0x36); 
+    Wire.endTransmission();
+
+    delay(100); //the datasheet indicates to leave a 100 ms delay to ensure modifications of the SEALED state
+}
+
+void bq34z100::FULL_ACCESS_MODE()
+{
+    Wire.beginTransmission(BQ34Z100);
+    Wire.write(0xFF);
+    Wire.write(0xFF);
+    Wire.write(0xFF);
+    Wire.write(0xFF); 
+    Wire.endTransmission();
+    delay(120);
+}
+
+  //-------------------------------------CALIBRATION & CARACTERIZATION COMMANDS
+
+  /*
+    The voltage divider 
+  */
+uint16_t bq34z100::CalibrateVoltageDivider(uint16_t currentVoltage)
+{
+    if(currentVoltage<5000)
+        return 0;
+//So do this we set the voltage divider to 1.5 Times the current pack voltage (to start with)
+ float setVoltage =   ((float)readVDivider());
+ //chg104Table((uint16_t)setVoltage);//set voltage divider
+ float readVoltage = (float)getVoltage();
+float newSetting = (currentVoltage/readVoltage)*setVoltage;
+chg104Table((uint16_t)newSetting,0,0);//set new divider ratio
+return (uint16_t)newSetting;
+}
+
+void bq34z100::CalibrateCurrentShunt(int16_t current)
+{
+    if(current>-200 && current<200)
+        return;//too small to use to calibrate
+    //current is in milliamps
+    if(current<0)
+        current=-current;
+    int16_t currentReading = getCurrent();
+    if(currentReading<0)
+        currentReading = -currentReading;
+    if(currentReading==0)
+        currentReading=20;
+    Serial.println(currentReading);
+    readFlash(0x68, 15);
+    delay(30);
+  
+    uint32_t curentGain = ((uint32_t)flashbytes[0])<<24 | ((uint32_t)flashbytes[1])<<16|((uint32_t)flashbytes[2])<<8|(uint32_t)flashbytes[3];
+    Serial.println(curentGain,DEC);
+    float currentGainResistance = (4.768/XemicsTofloat(curentGain));
+    Serial.println(currentGainResistance);
+    float newGain = (((float)currentReading)/((float)current)) * currentGainResistance;
+    Serial.println(newGain);
+    //we now have the new resistance calculated
+Serial.println("--");
+    chg104Table(0,newGain,newGain);
+    //chg104Table(0,5,5);
+
+    delay(30);
+}
+
+//--------------------------------------------DATA FLASH MODIFICATION COMMANDS------------------------------------------------------
+
+void bq34z100::chg48Table(uint16_t designCap, uint16_t designEnergy, uint16_t CellVT1T2, uint16_t CellVT2T3, uint16_t CellVT3T4, uint16_t CellVT4T5)
+{
+    readFlash(48, 24);
+    chgFlashPair(21, designCap);
+    chgFlashPair(23, designEnergy);
+    chgFlashPair(28, CellVT1T2);//0x0E10 = 3600
+    chgFlashPair(30, CellVT2T3);//0x0E10 = 3600
+    checkSum(48, 24);
+    delay(300);
+    readFlash(48, 35);
+    chgFlashPair(32, CellVT3T4);//0x0E10 = 3600
+    chgFlashPair(34, CellVT4T5);//0x0E10 = 3600
+    checkSum(48, 35);
+}
+
+void bq34z100::chg40Table()
+{
+  UNSEAL(); //The secuence repeats 3 times to ensuere unsealing (acording to TI)
+  UNSEAL();
+  UNSEAL();
+  delay(30);
+  FULL_ACCESS_MODE();
+
+  new_Pack_Configuration_MSB |= B00000100; 
+
+  write_reg(0x61, 0x00);
+  write_reg(0x3E, 0x40);
+  write_reg(0x3F, 0x00);
+
+  //This part is for storing the old pack configuration 
+  Wire.beginTransmission(BQ34Z100);
+  Wire.write(0x40); //Read the old Pack Configuration
+  Wire.endTransmission();
+  Wire.requestFrom(BQ34Z100, 1);
+  Old_byte_value[1] = Wire.read(); //store old Pack Configuration
+  Wire.endTransmission();
+  delay(30);
+
+  //This part is for storing the old pack CheckSum byte
+  Wire.beginTransmission(BQ34Z100);
+  Wire.write(0x60); //request all dataflash registers 
+  Wire.endTransmission();
+  Wire.requestFrom(BQ34Z100, 1);
+  Old_Check_Sum[1] = Wire.read(); //is intended to be the old check sum value 
+  Wire.endTransmission();
+  delay(30);
+  
+  //Here we write the new Pack Configuration, where we change the third bite of the MSB
+  write_reg(0x4B, new_Pack_Configuration_MSB);
+
+  int temp = (255-Old_Check_Sum[1]-Old_byte_value[1])%256;
+  int New_checksum = 255 - (temp + new_Pack_Configuration_MSB)%256;
+
+  delay(30);
+  //Reset the gauge to ensure the new data flash parameter goes into effect
+  reset();
+}
+
+//If vDiv is <500 dont change vdiv
+//if CCG && CCD ==0 then dont change them
+void bq34z100::chg104Table(uint16_t Vdivider,float CCGain,float CCDelta)
+{
+    if(Vdivider>32768)
+        return;
+    
+        
+    readFlash(0x68, 15);
+    delay(30);
+    if(Vdivider>500)
+    chgFlashPair(14, Vdivider);
+    if(!(CCGain==0 && CCDelta==0))
+    {
+        float GainDF = 4.768/CCGain;
+        float DeltaDF = 5677445/CCDelta;
+        chgFlashQuad(0,floatToXemics(GainDF));
+        chgFlashQuad(4,floatToXemics(DeltaDF));
+    }
+    checkSum(0x68, 15);
+
+}
+
+//--------------------------------------------END OF INTERFACE------------------------------------------------------
 
 
 /*---------------------------------------SENSING AND HIGH-VOLTAGE CONTROL-------------------------------------------
@@ -374,11 +496,13 @@ uint16_t bq34z100::getTemp()
   return Temperature;
 }
 
-uint8_t bq34z100::getSOC()
-{
-    return Read(0x02, 0) ; 
-}
 
+uint16_t bq34z100::readVDivider()
+{
+readFlash(0x68, 15);
+    uint16_t val = (((uint16_t)flashbytes[14]) <<8) | flashbytes[15];
+    return val;
+}
 
 /*-----------------------------------END OF SENSING AND HIGH-VOLTAGE CONTROL-----------------------------------------
 
@@ -413,6 +537,11 @@ int16_t bq34z100::getFlagsB()
  * State of charge (SOC) estimation, power-limit computation, balance/equalize cells
  * 
  */
+
+uint8_t bq34z100::getSOC()
+{
+    return Read(0x02, 0) ; 
+}
 
 
 //-----------------------------------------------END OF PERFORMNCE MANAGMENT----------------------------------------

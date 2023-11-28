@@ -13,9 +13,10 @@ class bq34z100
       //read can only work inside this library and not in the 
       uint16_t Read(int add, uint8_t length); //
       void FULL_ACCESS_MODE();
-      void UNSEALED();
+      void UNSEAL();
       void write_reg(uint8_t add, uint8_t val);
-  
+      void write_control(uint8_t add, uint8_t val);
+      int16_t Read_Control(uint8_t subcommand1, uint8_t subcommand2);
   public:
       void begin();
       int writeConfig();//should only be done once
@@ -32,7 +33,6 @@ class bq34z100
       int getRemaining();
       uint16_t getFlags();
       int16_t getFlagsB();
-      int16_t Control(uint8_t, uint8_t);
       int readInstantCurrent();
       bool readFlash(uint8_t , uint8_t );
       void reset();
@@ -47,7 +47,8 @@ class bq34z100
       void writeFlash(uint8_t, uint8_t);
       void chgFlashPair(uint8_t, int);
       void chg104Table(uint16_t Vdivider,float CCGain,float CCDelta);
-      void chg48Table(uint16_t, uint16_t);
+      void chg40Table();
+      void chg48Table(uint16_t designCap, uint16_t designEnergy, uint16_t CellVT1T2, uint16_t CellVT2T3, uint16_t CellVT3T4, uint16_t CellVT4T5);
       void chg49Table(uint16_t, uint16_t, uint16_t, uint16_t);
       void chg64Table(uint16_t, uint16_t, uint8_t, uint8_t);
       void chg83Table(uint16_t);

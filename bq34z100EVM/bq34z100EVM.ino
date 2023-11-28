@@ -12,10 +12,11 @@ void setup()
   //Set up will only excecute once
   Serial.begin(115200);
   Wire.begin();
-  BQ34Z100.chg48Table(2000, 7200); //2000 mAh y 7200 mWh
-  BQ34Z100.reset();
+  BQ34Z100.chg40Table();
+  //BQ34Z100.chg48Table(2000, 7200); //2000 mAh y 7200 mWh
+  //BQ34Z100.reset();
   //pinMode(13, OUTPUT);
-  //digitalWrite(13, LOW);
+  //digitalWrite(13, ALOW);
   //Auto calibration (Run this once on the bq34z100 to calibrate most of the internal registers
   //Battery Chemistry
   //Number of series Batteries
@@ -36,16 +37,16 @@ void loop()
   //Serial.println(VOLTAGE);
 
   Serial.print(BQ34Z100.getVoltage());
-  Serial.println("mV");
+  Serial.println(" mV");
 
   Serial.print(BQ34Z100.getCurrent());
-  Serial.println("mA");
+  Serial.println(" mA");
 
   Serial.print(BQ34Z100.getTemp());
   Serial.println("°C");
 
   Serial.print(BQ34Z100.getSOC());
-  Serial.println("%");
+  Serial.println("% estado de carga (SOC)");
 
   //BQ34Z100.TryCommunication();
   //Serial.println("Gas Gauge Status register (FLags)");
